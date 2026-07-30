@@ -5,13 +5,15 @@
 
 **빌드 도구 없음. 서버·DB 없음.** `index.html` 을 열면 그게 전부다.
 
+**→ <https://isorbgit.github.io/story-tool/>**
+
 ## 쓰는 법
 
 | 환경 | 방법 | 데이터가 저장되는 곳 |
 |---|---|---|
 | PC (Chrome / Edge) | `index.html` 더블클릭 → 폴더 선택 | 고른 폴더의 `data/` — 탐색기에서 보이고 git 으로 관리된다 |
 | PC (Firefox / Safari) | `index.html` 더블클릭 | 브라우저 내부 저장소(OPFS) — 안 보인다. 정기적으로 내보낼 것 |
-| 아이패드 | 배포된 https 주소로 접속 → 홈 화면에 추가 | OPFS |
+| 아이패드 | 위 주소를 Safari 로 열고 **홈 화면에 추가** | OPFS |
 
 `serve.cmd` 를 더블클릭하면 `http://localhost:8777` 로도 열린다.
 
@@ -46,4 +48,9 @@ backup/              최근 10개 스냅샷
 build.cmd     →  worldmap-single.html   (모든 파일을 하나로 합침, 약 290KB)
 ```
 
-파일 하나로 옮기고 싶을 때만 쓴다. https 로 서빙한다면 필요 없다.
+파일 하나로 옮기고 싶을 때만 쓴다. 위 주소로 쓴다면 필요 없다.
+
+## 설계 문서
+
+[SPEC.md](SPEC.md) — 데이터 구조, 저장 어댑터, 캔버스 규칙, 검증 규칙, 연대 체계.
+왜 그렇게 만들었는지가 같이 적혀 있다.
