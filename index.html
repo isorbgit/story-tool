@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="세계관 맵">
+<title>가면을 벗다 — 세계관 맵</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header id="topbar"></header>
+
+<!-- 스플리터는 그리드 칸을 하나씩 차지한다. 보이는 자식 수와 열 정의가 어긋나면
+     자동 배치가 새 행을 만들어 레이아웃이 무너지므로 style.css 의 #main 열 정의와 함께 본다. -->
+<div id="main">
+  <nav id="typebar" aria-label="노드 타입"></nav>
+  <div id="split-tabs" class="splitter" data-pane="tabs"
+       role="separator" aria-orientation="vertical" aria-label="타입 목록 폭 조절" tabindex="0"></div>
+  <section id="table-pane"></section>
+  <section id="canvas-pane" hidden></section>
+  <section id="timeline-pane" hidden></section>
+  <div id="split-panel" class="splitter" data-pane="panel"
+       role="separator" aria-orientation="vertical" aria-label="상세 패널 폭 조절" tabindex="0"></div>
+  <aside id="detail-pane" aria-label="상세"></aside>
+</div>
+
+<footer id="issues-panel" aria-label="검증"></footer>
+
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+
+<!-- 빌드 도구 없음. file:// 에서는 ES 모듈이 CORS로 막히므로 클래식 스크립트로 순서대로 읽는다. -->
+<script src="js/util.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/schema-default.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/store.js"></script>
+<script src="js/calendar.js"></script>
+<script src="js/schema-edit.js"></script>
+<script src="js/export-md.js"></script>
+<script src="js/bundle.js"></script>
+<script src="js/ui-picker.js"></script>
+<script src="js/ui-panel.js"></script>
+<script src="js/ui-table.js"></script>
+<script src="js/canvas.js"></script>
+<script src="js/timeline.js"></script>
+<script src="js/validate.js"></script>
+<script src="js/ui-issues.js"></script>
+<script src="js/ui-schema.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
