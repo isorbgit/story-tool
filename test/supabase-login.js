@@ -82,8 +82,24 @@ function step(ok, label, detail) {
 }
 
 async function main() {
-  const password = (await askPassword()).trim();
-  if (!password) { console.error('비밀번호가 비었습니다.'); process.exit(2); }
+  const password = (process.env.WM_PASSWORD || (await askPassword())).trim();
+  if (!password) {
+    if (!process.stdin.isTTY) {
+      console.error('비밀번호를 받지 못했습니다 — 입력이 터미널에 연결돼 있지 않습니다.');
+      console.error('');
+      console.error('진짜 터미널 창(cmd·PowerShell·Git Bash)에서 직접 실행하세요.');
+      console.error('편집기나 도구 안에서 돌리면 물어볼 자리가 없습니다.');
+      console.error('');
+      console.error('그게 어려우면 환경변수로 넘길 수도 있습니다:');
+      console.error('  PowerShell   $env:WM_PASSWORD=\'비밀번호\'; node test/supabase-login.js ...');
+      console.error('  Git Bash     WM_PASSWORD=\'비밀번호\' node test/supabase-login.js ...');
+      console.error('  ※ 이 방법은 셸 기록에 비밀번호가 남습니다. 쓴 뒤 기록을 지우세요.');
+    } else {
+      console.error('비밀번호가 비었습니다.');
+    }
+    process.exitCode = 2;
+    return;
+  }
 
   console.log(LF + '대상 ' + API + '  ·  버킷 ' + BUCKET + LF);
 

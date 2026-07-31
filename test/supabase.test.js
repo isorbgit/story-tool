@@ -13,6 +13,10 @@ const calls = [];
 const idb = {};
 let respond = () => ({ status: 200, body: '{}' });
 
+/* Supabase 는 "파일 없음" 을 HTTP 404 가 아니라 400 + 본문 statusCode 404 로 준다.
+   빈 버킷에 처음 연결하는 경로가 여기서 갈린다. */
+const MISSING = { status: 400, body: '{"statusCode":"404","error":"not_found","message":"Object not found","code":"NoSuchKey"}' };
+
 const ctx = vm.createContext({});
 ctx.window = ctx;
 ctx.console = console;
@@ -66,16 +70,35 @@ a.signIn('me@example.com', 'pw')
     check('세션 저장', !!idb['worldmap-supabase-session'], true);
 
     calls.length = 0;
-    respond = (url) => url.includes('canvases') ? { status: 404, body: '' } : { status: 200, body: '{"x":1}' };
+    respond = (url) => url.includes('canvases') ? MISSING : { status: 200, body: '{"x":1}' };
     return a.readAll();
   })
   .then(data => {
     check('readAll 요청 수', calls.length, 4);
     check('첫 요청 URL', calls[0].url, 'https://demo.supabase.co/storage/v1/object/worldmap/data/schema.json');
     check('Authorization', calls[0].headers.Authorization, 'Bearer AT');
-    check('404 는 null', data.canvases, null);
+    check('없는 파일(400+NoSuchKey) 은 null', data.canvases, null);
     check('키 이름', Object.keys(data).sort().join(','), 'canvases,edges,nodes,schema');
 
+    /* 빈 버킷 전체 — 네 파일이 다 없어도 readAll 이 터지면 안 된다 */
+    calls.length = 0;
+    respond = () => MISSING;
+    return a.readAll();
+  })
+  .then(empty => {
+    check('빈 버킷 readAll 성공', Object.keys(empty).length, 4);
+    check('전부 null', Object.keys(empty).every(k => empty[k] === null), true);
+
+    /* 권한 거부는 절대 null 로 삼키면 안 된다 — 정책 오류가 "빈 저장소" 로 보이면
+       곧이어 그 빈 상태가 저장되어 데이터를 덮는다. */
+    calls.length = 0;
+    respond = () => ({ status: 400, body: '{"statusCode":"403","error":"Unauthorized","message":"denied","code":"AccessDenied"}' });
+    return a.readAll().then(
+      () => check('권한 거부는 오류로', 'null 로 삼켰다', '예외를 던져야 한다'),
+      (e) => check('권한 거부는 오류로', /AccessDenied/.test(e.message), true)
+    );
+  })
+  .then(() => {
     calls.length = 0;
     respond = () => ({ status: 200, body: '{}' });
     return a.writeFiles({ 'nodes.json': '{"a":1}', 'edges.json': '{}' });

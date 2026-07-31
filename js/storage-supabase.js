@@ -139,9 +139,25 @@
     return this._headers().then(function (h) {
       return fetch(self._objUrl(path), { headers: h, cache: 'no-store' });
     }).then(function (r) {
-      if (r.status === 404) return null;
-      if (!r.ok) throw new Error(path + ' 읽기 실패 (' + r.status + ')');
-      return r.text();
+      if (r.ok) return r.text();
+      return r.text().then(function (body) {
+        /* Supabase 는 "파일 없음" 을 HTTP 404 로 주지 않는다. **HTTP 400** 에
+           본문의 statusCode 만 404 다. 상태 코드만 보면 "아직 파일이 없다" 를
+           "읽기 실패" 로 오해해 빈 버킷에 대한 첫 연결이 통째로 막힌다.
+
+           권한 거부(AccessDenied)는 절대 여기서 삼키면 안 된다. 그걸 null 로
+           돌리면 정책이 틀린 것이 "빈 저장소" 로 보이고, 곧이어 그 빈 상태가
+           저장되어 데이터를 덮는다. */
+        var code = '';
+        try {
+          var j = JSON.parse(body);
+          code = j.code || '';
+          if (!code && String(j.statusCode) === '404') code = 'NoSuchKey';
+        } catch (e) { /* JSON 이 아니면 아래에서 오류로 넘어간다 */ }
+
+        if (code === 'NoSuchKey' || r.status === 404) return null;
+        throw new Error(path + ' 읽기 실패 (' + r.status + ' ' + (code || '?') + ') ' + body.slice(0, 160));
+      });
     });
   };
 
