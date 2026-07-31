@@ -3,6 +3,11 @@
 /data/
 /backup/
 
+# 원본 설정 문서와 변환 중간 산출물. 데이터와 같은 이유로 올리지 않는다.
+*.pptx
+*.wmap.json
+/import/
+
 # 빌드 결과물. build.cmd 로 언제든 다시 만든다.
 /worldmap-single.html
 

@@ -95,7 +95,9 @@ WM.DEFAULT_SCHEMA = {
       extraFields: [{ key: 'period', label: '기간', widget: 'text' }]
     },
     char_concept: {
-      free: false, options: ['신봉', '창시', '배격', '이용'],
+      // '정체' 는 신념이 아니다 — 인물이 그 개념 **자신인** 경우를 위한 값이다.
+      // (「북쪽의 악마」처럼 세상이 붙인 이름과 그 이름의 주인을 잇는다)
+      free: false, options: ['신봉', '창시', '배격', '이용', '정체'],
       extraFields: [{ key: 'note', label: '메모', widget: 'text' }]
     },
     concept_event: {
@@ -116,6 +118,7 @@ WM.DEFAULT_SCHEMA = {
         { key: 'causeOut', label: '인과Out', accepts: ['event'], multi: true, pin: 'causal', dir: 'out', reciprocal: 'event.causeIn', labelPreset: 'event_cause' },
         { key: 'characters', label: '인물', accepts: ['character'], multi: true, pin: 'involve', dir: 'in', reciprocal: 'character.events', labelPreset: 'char_event' },
         { key: 'orgs', label: '조직', accepts: ['organization'], multi: true, pin: 'involve', dir: 'in', reciprocal: 'organization.events', labelPreset: 'org_event' },
+        { key: 'races', label: '종족', accepts: ['race'], multi: true, pin: 'involve', dir: 'in', reciprocal: 'race.events', labelPreset: 'org_event' },
         { key: 'items', label: '물건', accepts: ['item'], multi: true, pin: 'involve', dir: 'in', reciprocal: 'item.events', labelPreset: 'generic' },
         { key: 'concepts', label: '개념', accepts: ['concept'], multi: true, pin: 'involve', dir: 'out', reciprocal: 'concept.events', labelPreset: 'concept_event' },
         { key: 'locations', label: '장소', accepts: ['location'], multi: true, pin: 'involve', dir: 'in', reciprocal: 'location.events', labelPreset: 'generic' }
@@ -134,6 +137,8 @@ WM.DEFAULT_SCHEMA = {
       sockets: [
         { key: 'events', label: '관여 사건', accepts: ['event'], multi: true, pin: 'involve', dir: 'out', reciprocal: 'event.characters', labelPreset: 'char_event' },
         { key: 'orgs', label: '소속', accepts: ['organization'], multi: true, pin: 'involve', dir: 'out', reciprocal: 'organization.members', labelPreset: 'org_role' },
+        // multi:true 인 이유 — 혼혈은 두 종족에 걸친다. 「가면을 벗다」의 라이칸이 그렇게 생겼다.
+        { key: 'races', label: '종족', accepts: ['race'], multi: true, pin: 'involve', dir: 'out', reciprocal: 'race.members', labelPreset: 'generic' },
         { key: 'items', label: '소지·제작', accepts: ['item'], multi: true, pin: 'involve', dir: 'out', reciprocal: 'item.holders', labelPreset: 'char_item' },
         { key: 'concepts', label: '신념', accepts: ['concept'], multi: true, pin: 'involve', dir: 'out', reciprocal: 'concept.believers', labelPreset: 'char_concept' },
         { key: 'relations', label: '인물관계', accepts: ['character'], multi: true, pin: 'involve', dir: 'out', undirected: true, reciprocal: 'character.relations', labelPreset: 'char_char' },
@@ -149,6 +154,31 @@ WM.DEFAULT_SCHEMA = {
       cardFields: ['alias', 'intro']
     },
 
+    /* 종족 — 조직으로도 개념으로도 담기지 않아 타입을 따로 뒀다.
+       조직의 규모등급(패거리~초국가)은 종족에 맞지 않고, 개념의 신봉자·전파 매체
+       소켓은 종족에 붙으면 뜻이 성립하지 않는다. SPEC 5.3 이 예고한 확장이다.
+       색은 사건(#E8A33D)과 헷갈리지 않도록 비어 있던 청록 대역에서 골랐다. */
+    race: {
+      label: '종족', idPrefix: 'race_', color: '#45B39D', icon: 'users',
+      sockets: [
+        { key: 'events', label: '관여 사건', accepts: ['event'], multi: true, pin: 'involve', dir: 'out', reciprocal: 'event.races', labelPreset: 'org_event' },
+        { key: 'members', label: '구성원', accepts: ['character'], multi: true, pin: 'involve', dir: 'in', reciprocal: 'character.races', labelPreset: 'generic' },
+        { key: 'orgs', label: '소속 조직', accepts: ['organization'], multi: true, pin: 'involve', dir: 'out', reciprocal: 'organization.races', labelPreset: 'generic' },
+        { key: 'habitats', label: '거주지', accepts: ['location'], multi: true, pin: 'involve', dir: 'out', reciprocal: 'location.races', labelPreset: 'generic' },
+        { key: 'origins', label: '기원 종족', accepts: ['race'], multi: true, pin: 'involve', dir: 'out', reciprocal: 'race.descendants', labelPreset: 'generic' },
+        { key: 'descendants', label: '파생 종족', accepts: ['race'], multi: true, pin: 'involve', dir: 'in', reciprocal: 'race.origins', labelPreset: 'generic' },
+        // 인물관계와 같은 무방향 자기참조. 라이칸↔휴마니 대립이 2~4장의 축이다.
+        { key: 'rivals', label: '대립 종족', accepts: ['race'], multi: true, pin: 'involve', dir: 'out', undirected: true, reciprocal: 'race.rivals', labelPreset: 'generic' }
+      ],
+      fields: [
+        { key: 'origin', label: '기원', widget: 'markdown' },
+        { key: 'traits', label: '특징', widget: 'markdown', required: true },
+        { key: 'named', label: '명명 시점', widget: 'when' },
+        { key: 'population', label: '개체수', widget: 'text' }
+      ],
+      cardFields: ['traits']
+    },
+
     organization: {
       label: '조직', idPrefix: 'org_', color: '#C75B5B', icon: 'flag',
       sockets: [
@@ -156,6 +186,7 @@ WM.DEFAULT_SCHEMA = {
         { key: 'parents', label: '상위 조직', accepts: ['organization'], multi: true, pin: 'involve', dir: 'out', reciprocal: 'organization.children', labelPreset: 'generic' },
         { key: 'children', label: '하위 조직', accepts: ['organization'], multi: true, pin: 'involve', dir: 'in', reciprocal: 'organization.parents', labelPreset: 'generic' },
         { key: 'members', label: '구성원', accepts: ['character'], multi: true, pin: 'involve', dir: 'in', reciprocal: 'character.orgs', labelPreset: 'org_role' },
+        { key: 'races', label: '구성 종족', accepts: ['race'], multi: true, pin: 'involve', dir: 'in', reciprocal: 'race.orgs', labelPreset: 'generic' },
         { key: 'concepts', label: '이념', accepts: ['concept'], multi: true, pin: 'involve', dir: 'out', reciprocal: 'concept.believers', labelPreset: 'char_concept' },
         { key: 'items', label: '보유물', accepts: ['item'], multi: true, pin: 'involve', dir: 'out', reciprocal: 'item.holders', labelPreset: 'char_item' },
         { key: 'territory', label: '세력권', accepts: ['location'], multi: true, pin: 'involve', dir: 'out', reciprocal: 'location.rulers', labelPreset: 'generic' }
@@ -215,6 +246,7 @@ WM.DEFAULT_SCHEMA = {
         { key: 'children', label: '하위 장소', accepts: ['location'], multi: true, pin: 'involve', dir: 'in', reciprocal: 'location.parents', labelPreset: 'generic' },
         { key: 'rulers', label: '지배 조직', accepts: ['organization'], multi: true, pin: 'involve', dir: 'in', reciprocal: 'organization.territory', labelPreset: 'generic' },
         { key: 'residents', label: '거점 인물', accepts: ['character'], multi: true, pin: 'involve', dir: 'in', reciprocal: 'character.bases', labelPreset: 'generic' },
+        { key: 'races', label: '거주 종족', accepts: ['race'], multi: true, pin: 'involve', dir: 'in', reciprocal: 'race.habitats', labelPreset: 'generic' },
         { key: 'items', label: '소재 물건', accepts: ['item'], multi: true, pin: 'involve', dir: 'in', reciprocal: 'item.location', labelPreset: 'generic' }
       ],
       fields: [
