@@ -32,13 +32,19 @@
 3. **Authentication → Users → Add user** — 쓸 이메일·비밀번호로 하나 만든다
    (Auto Confirm User 를 켜야 메일 확인 없이 바로 쓴다). 만들어진 **UUID 를 복사**한다
 4. **Authentication → Sign In / Providers → Email — "Allow new users to sign up" 을 끈다**
-5. **SQL Editor** 에서 아래를 실행한다. `<UUID>` 를 3번에서 복사한 값으로 바꾼다:
+5. **SQL Editor** 에서 아래를 실행한다.
+   아래 UUID 두 군데를 3번에서 복사한 값으로 바꾼다 — **따옴표 안의 값만** 갈아끼우고
+   따옴표는 남긴다. 꺾쇠 `< >` 같은 건 넣지 않는다:
 
 ```sql
+drop policy if exists "worldmap owner" on storage.objects;
+
 create policy "worldmap owner" on storage.objects for all
-  using      (bucket_id = 'worldmap' and auth.uid() = '<UUID>')
-  with check (bucket_id = 'worldmap' and auth.uid() = '<UUID>');
+  using      (bucket_id = 'worldmap' and auth.uid() = '00000000-0000-0000-0000-000000000000')
+  with check (bucket_id = 'worldmap' and auth.uid() = '00000000-0000-0000-0000-000000000000');
 ```
+
+> `drop` 이 앞에 있어 몇 번을 실행해도 된다. 정책을 고칠 때도 이걸 다시 돌리면 된다.
 
 > **`auth.role() = 'authenticated'` 로 걸면 안 된다.**
 > anon key 는 공개된 앱 안에 그대로 실린다. 회원가입이 열려 있으면 누구든 소스에서
