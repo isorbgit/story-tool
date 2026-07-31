@@ -243,6 +243,14 @@
     WM.panel.render();
     renderTopbar();
     setView('table');
+
+    /* 부팅 때 원격이 비어 있어 보류해 둔 것이 있으면 여기서 묻는다.
+       로컬 데이터가 화면에 뜬 뒤라 "무엇을 올리는지" 를 보고 답할 수 있다. */
+    if (pendingRemote && Object.keys(store.state.nodes || {}).length) {
+      var a = pendingRemote;
+      pendingRemote = null;
+      uploadToRemote(a);
+    }
   }
 
   function connectFsa() {
@@ -271,33 +279,48 @@
      연결에 실패하면 조용히 로컬로 내려간다 — 비행기 안에서 앱이 안 열리면 안 된다. */
 
   var remoteError = null;
+  var pendingRemote = null;      // 붙었지만 비어 있어 아직 채택하지 않은 원격
+
+  /** 읽기까지 확인된 뒤에만 설정을 저장한다. 그래야 다음 부팅이 안전하다. */
+  function adoptRemote(a, remoteData) {
+    return WM.storage.SupabaseAdapter.saveConfig(a.cfg).then(function () {
+      adapter = a;
+      return bootData(remoteData).then(startApp);
+    });
+  }
+
+  /** 로컬에 열려 있는 것을 원격으로 올리고 채택한다. */
+  function uploadToRemote(a) {
+    var n = Object.keys(store.state.nodes || {}).length;
+    return U.confirmModal('원격 저장소가 비어 있습니다', [
+      el('p', {}, ['지금 열려 있는 ', el('b', { text: n + '개' }), ' 노드를 원격으로 올릴까요?']),
+      el('p.dim', { text: '올리지 않으면 로컬 저장을 계속 씁니다. 지금 데이터는 그대로 남습니다.' })
+    ], '올리기', 'primary').then(function (up) {
+      if (!up) return false;
+      return WM.storage.SupabaseAdapter.saveConfig(a.cfg).then(function () {
+        adapter = a;
+        store.state.adapter = a;
+        return store.save(true);                    // force — 4개 파일 전부
+      }).then(function () {
+        updateStoreChip();
+        U.toast('원격으로 올렸습니다. 이제 이 기기는 원격을 씁니다.', 'ok', 5000);
+        return true;
+      });
+    });
+  }
 
   function connectRemote() {
     return WM.storage.SupabaseAdapter.setup().then(function (a) {
       if (!a) return;
+      /* 로그인만으로는 연결이 아니다. 실제로 읽어 보고 정한다. */
       return store.flush().then(function () { return a.readAll(); }).then(function (remote) {
         var localCount = Object.keys(store.state.nodes || {}).length;
-
-        /* 빈 원격에 그냥 붙으면 화면이 비고, 곧이어 그 빈 상태가 원격에 저장된다.
-           로컬 데이터가 있는데 원격이 비었으면 반드시 물어본다. */
-        if (localCount && !hasSavedData(remote)) {
-          return U.confirmModal('원격 저장소가 비어 있습니다', [
-            el('p', {}, ['지금 열려 있는 ', el('b', { text: localCount + '개' }), ' 노드를 원격으로 올릴까요?']),
-            el('p.dim', { text: '올리지 않으면 빈 상태로 시작합니다. 지금 데이터는 로컬에 그대로 남습니다.' })
-          ], '올리고 연결', 'primary').then(function (up) {
-            if (!up) return;
-            adapter = a;
-            store.state.adapter = a;
-            return store.save(true).then(startApp);        // force — 4개 파일 전부
-          });
-        }
-
-        adapter = a;
-        return bootData(remote).then(startApp);
+        if (localCount && !hasSavedData(remote)) return uploadToRemote(a);
+        return adoptRemote(a, remote);
       });
     }).catch(function (e) {
       console.error(e);
-      U.toast('원격 저장소 연결 실패: ' + (e.message || e), 'bad', 6000);
+      U.toast('원격 저장소 연결 실패: ' + (e.message || e), 'bad', 8000);
     });
   }
 
@@ -472,16 +495,23 @@
     WM.storage.SupabaseAdapter.loadConfig().then(function (cfg) {
       if (!cfg) return null;
       var a = new WM.storage.SupabaseAdapter();
-      return a.connect().then(function () { return a; }).catch(function (e) {
-        remoteError = e.message || String(e);
-        console.warn('[wm] 원격 저장소를 쓸 수 없어 로컬로 내려갑니다 —', remoteError);
-        return null;
-      });
+      // 붙기만 하는 게 아니라 읽어 본다. 읽히지 않으면 원격이 있다고 할 수 없다.
+      return a.connect().then(function () { return a.readAll(); })
+        .then(function (data) { return { adapter: a, data: data }; })
+        .catch(function (e) {
+          remoteError = e.message || String(e);
+          console.warn('[wm] 원격 저장소를 쓸 수 없어 로컬로 내려갑니다 —', remoteError);
+          return null;
+        });
     }).then(function (remote) {
-      if (remote) {
-        adapter = remote;
-        return bootData().then(startApp).catch(readFailed);
+      if (remote && hasSavedData(remote.data)) {
+        adapter = remote.adapter;
+        return bootData(remote.data).then(startApp).catch(readFailed);
       }
+      /* 원격이 붙었는데 비어 있다. 여기서 그냥 열면 빈 화면이 뜨고, 곧이어 그 빈
+         상태가 저장되어 아직 올리지 않은 로컬 데이터를 덮는다. 로컬을 먼저 열고
+         올릴지는 사람이 정한다 — connectRemote 와 같은 태도를 부팅에도 적용한다. */
+      if (remote) pendingRemote = remote.adapter;
       return localBoot();
     });
   }

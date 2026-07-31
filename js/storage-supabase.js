@@ -328,10 +328,11 @@
 
         var a = new SupabaseAdapter();
         a.cfg = next;
+        /* 여기서 설정을 저장하지 않는다. 로그인이 됐다고 연결이 된 것이 아니다 —
+           정책이 틀리면 읽기가 막힌다. 반쪽짜리 설정을 저장해 두면 다음 부팅을
+           그게 가로채서, 실패했는데도 원격에 붙은 것처럼 보인다.
+           읽기까지 확인한 뒤 호출부가 saveConfig 한다. */
         return a.signIn(f.email.value.trim(), f.password.value).then(function () {
-          return SupabaseAdapter.saveConfig(next);
-        }).then(function () {
-          U.toast('원격 저장소에 연결했습니다', 'ok');
           return a;
         }).catch(function (e) {
           U.toast(e.message || String(e), 'bad', 6000);
