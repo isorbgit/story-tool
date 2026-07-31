@@ -96,7 +96,8 @@ WM.DEFAULT_SCHEMA = {
     },
     char_concept: {
       // '정체' 는 신념이 아니다 — 인물이 그 개념 **자신인** 경우를 위한 값이다.
-      // (「북쪽의 악마」처럼 세상이 붙인 이름과 그 이름의 주인을 잇는다)
+      // (세상이 붙인 이름과 그 이름의 주인을 잇는다. 주인을 감추고 싶으면 이름 쪽
+      //  노드를 reveal:spoiler 로 두면 이 엣지가 함께 가려진다 — SPEC 8장)
       free: false, options: ['신봉', '창시', '배격', '이용', '정체'],
       extraFields: [{ key: 'note', label: '메모', widget: 'text' }]
     },
