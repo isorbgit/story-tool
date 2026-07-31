@@ -344,6 +344,10 @@
   function refresh() {
     var a = document.activeElement;
     if (a && a.classList && a.classList.contains('input--cell')) return;
+    /* 타입바 개수도 함께 갱신한다. 예전에는 renderRowsOnly 만 불러서 행은 사라지는데
+       개수는 그대로 남았다 — 노드를 지워도 숫자가 안 줄어 합계가 어긋난다.
+       renderTabs 는 버튼 몇 개를 다시 만드는 것뿐이라 매 변경에 불러도 부담이 없다. */
+    renderTabs();
     if (tbodyRef) renderRowsOnly(); else render();
   }
 
