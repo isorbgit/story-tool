@@ -68,38 +68,57 @@ async function main() {
           'Authentication → Sign In / Providers → "Allow new users to sign up" 끄기');
   }
 
-  // 3. 버킷 존재
-  const b = await fetch(`${API}/storage/v1/bucket/${BUCKET}`, { headers: H });
-  const bj = await b.json().catch(() => null);
-  const bucketExists = b.ok;
-  record(bucketExists, `버킷 '${BUCKET}' 존재`,
-    bucketExists ? (bj && bj.public ? '⚠ Public 버킷입니다 — 누구나 읽습니다' : 'private')
-      : 'Storage → New bucket 에서 만드세요 (Public 체크 해제)');
-  if (bucketExists && bj && bj.public) record(false, '버킷이 Public', '설정 → Public 해제');
+  /* 3+4. 버킷 존재와 익명 쓰기 차단을 한 번에.
 
-  // 4. 익명 쓰기는 반드시 막혀야 한다
-  const w = await fetch(`${API}/storage/v1/object/${BUCKET}/.probe-anon.txt`, {
-    method: 'POST', headers: { ...H, 'Content-Type': 'text/plain', 'x-upsert': 'true' }, body: 'probe'
-  });
-  const denied = w.status === 401 || w.status === 403 || w.status === 400;
-  record(denied, `익명 쓰기 차단 (HTTP ${w.status})`,
-    denied ? '' : '로그인 없이 쓰기가 됩니다. 정책을 다시 보세요.');
-  if (!denied) {
-    await fetch(`${API}/storage/v1/object/${BUCKET}/.probe-anon.txt`, { method: 'DELETE', headers: H })
-      .catch(() => {});
+     GET /storage/v1/bucket/<name> 으로는 판정할 수 없다. 버킷 메타데이터를 읽으려면
+     storage.buckets 에 SELECT 정책이 있어야 하는데, 우리 정책은 storage.objects 에만
+     걸려 있고 그게 맞다. 권한이 없으면 Supabase 는 404 NoSuchBucket 으로 가려서
+     "버킷이 없다" 와 "메타데이터를 못 본다" 가 똑같이 보인다.
+
+     대신 쓰기를 실제로 시도해 **어디서 막히는지**를 본다. 없는 버킷 이름과 나란히
+     찔러 보고 응답이 다른 것을 확인한다.
+         버킷 있음 + 정책 정상 → 403 AccessDenied (버킷을 찾고 정책에서 막힘)
+         버킷 없음            → 404 NoSuchBucket (버킷 단계에서 막힘) */
+  async function probeWrite(bucket) {
+    const r = await fetch(`${API}/storage/v1/object/${bucket}/.probe-anon.txt`, {
+      method: 'POST', headers: { ...H, 'Content-Type': 'text/plain', 'x-upsert': 'true' }, body: 'probe'
+    });
+    let code = '';
+    try { code = (await r.json()).code || ''; } catch (e) { /* 성공이면 본문이 다르다 */ }
+    return { status: r.status, code, ok: r.ok };
   }
 
-  // 5. 익명 읽기도 막혀야 한다
+  const mine = await probeWrite(BUCKET);
+  const ghost = await probeWrite('zzz-' + Math.random().toString(36).slice(2) + '-nope');
+
+  if (mine.ok) {
+    record(false, '익명 쓰기가 됩니다', '로그인 없이 쓰기가 허용돼 있습니다. 정책을 다시 보세요.');
+    await fetch(`${API}/storage/v1/object/${BUCKET}/.probe-anon.txt`, { method: 'DELETE', headers: H }).catch(() => {});
+    record(true, `버킷 '${BUCKET}' 존재`);
+  } else if (mine.code === 'NoSuchBucket' && ghost.code === 'NoSuchBucket') {
+    record(false, `버킷 '${BUCKET}' 존재`, 'Storage → New bucket 에서 만드세요 (Public 체크 해제)');
+  } else {
+    record(mine.code !== 'NoSuchBucket', `버킷 '${BUCKET}' 존재`,
+      `없는 버킷은 ${ghost.code}, 이 버킷은 ${mine.code} — 버킷 단계를 지나 정책에서 막혔다`);
+    record(true, `익명 쓰기 차단 (HTTP ${mine.status} ${mine.code})`);
+  }
+
+  // 5. 익명 읽기
   const r5 = await fetch(`${API}/storage/v1/object/${BUCKET}/data/nodes.json`, { headers: H });
-  const j5 = await r5.text();
-  const readBlocked = !r5.ok;
-  record(readBlocked, `익명 읽기 차단 (HTTP ${r5.status})`,
-    readBlocked ? (j5.includes('NoSuchKey') ? '아직 파일이 없어 404 — 정책 판정은 데이터가 올라간 뒤 다시 볼 것' : '')
+  const t5 = await r5.text();
+  record(!r5.ok, `익명 읽기 차단 (HTTP ${r5.status})`,
+    !r5.ok
+      ? (t5.includes('NoSuchKey') ? '아직 파일이 없어 404 — 데이터가 올라간 뒤 다시 볼 것' : '')
       : '로그인 없이 데이터가 읽힙니다.');
 
-  // 6. 공개 경로
+  /* 6. 공개 버킷인가.
+     private 이면 공개 경로 자체가 NoSuchBucket 이다. 버킷이 public 이면 여기까지
+     들어와 NoSuchKey(파일 없음)나 200 이 나온다 — 그건 누구나 읽는다는 뜻이다. */
   const r6 = await fetch(`${API}/storage/v1/object/public/${BUCKET}/data/nodes.json`);
-  record(!r6.ok, `공개 경로 차단 (HTTP ${r6.status})`);
+  const t6 = await r6.text();
+  const isPublic = r6.ok || t6.includes('NoSuchKey');
+  record(!isPublic, '버킷이 private',
+    isPublic ? '⚠ Public 버킷입니다 — 정책과 무관하게 누구나 읽습니다. Public 해제하세요.' : '');
 
   done();
 }

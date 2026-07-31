@@ -173,16 +173,35 @@
       lines.push('브라우저 내부 저장소(OPFS)에 저장합니다. 파일 앱에서는 보이지 않습니다.');
       lines.push('PC로 옮기려면 [내보내기] 로 번들 파일을 만들어야 합니다.');
       lines.push('사이트 데이터를 지우면 함께 사라집니다. 정기적으로 내보내 두세요.');
+    } else if (adapter.id === 'supabase') {
+      lines.push('원격 저장소(' + adapter.cfg.bucket + ')에 저장합니다. 기기가 달라도 같은 데이터를 봅니다.');
+      lines.push('연결이 끊기면 저장이 실패로 뜨고, 연결되면 밀린 변경이 올라갑니다.');
     } else {
       lines.push('메모리에만 있습니다. 새로고침하면 사라집니다.');
     }
+    var close = null;
     U.modal({
       title: '저장 위치',
+      onOpen: function (finish) { close = finish; },
       body: lines.map(function (t) { return el('p', { text: t }); }).concat([
         adapter && adapter.id === 'fsa' ? el('button.btn.btn--ghost', {
           type: 'button', text: '다른 폴더 선택',
-          onclick: function () { reconnect(); }
-        }) : null
+          onclick: function () { if (close) close(null); reconnect(); }
+        }) : null,
+        /* 로컬 데이터를 읽은 뒤에도 여기서 올릴 수 있어야 한다. 시작 화면에만 두면
+           폴더를 고른 순간 버튼이 사라져, 처음 올릴 방법 자체가 없어진다. */
+        adapter && adapter.id !== 'supabase' ? el('button.btn.btn--ghost', {
+          type: 'button', text: '원격 저장소 연결',
+          onclick: function () { if (close) close(null); connectRemote(); }
+        }) : el('button.btn.btn--ghost', {
+          type: 'button', text: '연결 해제',
+          onclick: function () {
+            if (close) close(null);
+            WM.storage.SupabaseAdapter.forgetConfig().then(function () {
+              U.toast('원격 저장소 설정을 지웠습니다. 새로고침하면 로컬로 돌아갑니다.', 'ok', 5000);
+            });
+          }
+        })
       ]),
       actions: [{ label: '닫기', value: null }]
     });
