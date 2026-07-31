@@ -30,21 +30,32 @@
 1. [supabase.com](https://supabase.com) 에서 프로젝트를 만든다
 2. **Storage → New bucket** — 이름 `worldmap`, **Public 체크 해제**
 3. **Authentication → Users → Add user** — 쓸 이메일·비밀번호로 하나 만든다
-   (Auto Confirm User 를 켜야 메일 확인 없이 바로 쓴다). 만들어진 **UUID 를 복사**한다
+   (Auto Confirm User 를 켜야 메일 확인 없이 바로 쓴다)
 4. **Authentication → Sign In / Providers → Email — "Allow new users to sign up" 을 끈다**
-5. **SQL Editor** 에서 아래를 실행한다.
-   아래 UUID 두 군데를 3번에서 복사한 값으로 바꾼다 — **따옴표 안의 값만** 갈아끼우고
-   따옴표는 남긴다. 꺾쇠 `< >` 같은 건 넣지 않는다:
+5. **SQL Editor** 에서 아래를 실행한다. 이메일 두 군데를 3번에서 쓴 값으로 바꾼다 —
+   **따옴표 안의 값만** 갈아끼우고 따옴표는 남긴다:
 
 ```sql
 drop policy if exists "worldmap owner" on storage.objects;
 
 create policy "worldmap owner" on storage.objects for all
-  using      (bucket_id = 'worldmap' and auth.uid() = '00000000-0000-0000-0000-000000000000')
-  with check (bucket_id = 'worldmap' and auth.uid() = '00000000-0000-0000-0000-000000000000');
+  using      (bucket_id = 'worldmap' and (auth.jwt() ->> 'email') = 'you@example.com')
+  with check (bucket_id = 'worldmap' and (auth.jwt() ->> 'email') = 'you@example.com');
 ```
 
-> `drop` 이 앞에 있어 몇 번을 실행해도 된다. 정책을 고칠 때도 이걸 다시 돌리면 된다.
+> **두 문장을 함께 선택해서** 실행한다. SQL Editor 는 선택 영역만 돌리므로
+> `create` 만 긁어 실행하면 `policy ... already exists` 가 난다.
+>
+> uid 가 아니라 이메일로 거는 이유 — 사용자를 지우고 다시 만들면 UUID 가 바뀌어
+> 정책을 매번 다시 써야 한다. `auth.jwt()` 는 토큰 안의 클레임을 읽는 것이라
+> `auth.users` 접근 권한도 필요 없다.
+
+현재 걸린 정책은 이렇게 본다:
+
+```sql
+select policyname, cmd, roles from pg_policies
+where schemaname = 'storage' and tablename = 'objects';
+```
 
 > **`auth.role() = 'authenticated'` 로 걸면 안 된다.**
 > anon key 는 공개된 앱 안에 그대로 실린다. 회원가입이 열려 있으면 누구든 소스에서
