@@ -30,25 +30,36 @@
 1. [supabase.com](https://supabase.com) 에서 프로젝트를 만든다
 2. **Storage → New bucket** — 이름 `worldmap`, **Public 체크 해제**
 3. **Authentication → Users → Add user** — 쓸 이메일·비밀번호로 하나 만든다
-   (Auto Confirm User 를 켜야 메일 확인 없이 바로 쓴다)
-4. **Storage → Policies** — `worldmap` 버킷에 정책을 건다.
-   SQL Editor 에서 아래를 그대로 실행해도 된다:
+   (Auto Confirm User 를 켜야 메일 확인 없이 바로 쓴다). 만들어진 **UUID 를 복사**한다
+4. **Authentication → Sign In / Providers → Email — "Allow new users to sign up" 을 끈다**
+5. **SQL Editor** 에서 아래를 실행한다. `<UUID>` 를 3번에서 복사한 값으로 바꾼다:
 
 ```sql
-create policy "worldmap read"  on storage.objects for select
-  using (bucket_id = 'worldmap' and auth.role() = 'authenticated');
-create policy "worldmap write" on storage.objects for insert
-  with check (bucket_id = 'worldmap' and auth.role() = 'authenticated');
-create policy "worldmap update" on storage.objects for update
-  using (bucket_id = 'worldmap' and auth.role() = 'authenticated');
-create policy "worldmap delete" on storage.objects for delete
-  using (bucket_id = 'worldmap' and auth.role() = 'authenticated');
+create policy "worldmap owner" on storage.objects for all
+  using      (bucket_id = 'worldmap' and auth.uid() = '<UUID>')
+  with check (bucket_id = 'worldmap' and auth.uid() = '<UUID>');
 ```
 
-> **정책을 걸지 않으면 아무도 못 읽고, 버킷을 Public 으로 만들면 누구나 읽는다.**
-> 설정에 비밀·반전이 들어 있다면 반드시 private + 위 정책이다.
+> **`auth.role() = 'authenticated'` 로 걸면 안 된다.**
+> anon key 는 공개된 앱 안에 그대로 실린다. 회원가입이 열려 있으면 누구든 소스에서
+> 키를 꺼내 가입한 뒤 `authenticated` 가 되어 전부 읽는다. 그 조합에서 `authenticated`
+> 는 경계 구실을 하지 못한다. 그래서 **4번(가입 차단)과 5번(uid 로 한정)을 같이** 한다.
+>
+> 버킷을 Public 으로 만들면 정책과 무관하게 누구나 읽는다. 반드시 private 이다.
 
-5. **Project Settings → API** 에서 `URL` 과 `anon public` 키를 복사한다
+6. **Project Settings → API** 에서 `URL` 과 `anon public` 키를 복사한다.
+   여기서 필요한 건 `https://<ref>.supabase.co` 형태의 **API 주소**다 —
+   브라우저 주소창의 대시보드 주소가 아니다
+
+### 확인
+
+설정이 실제로 안전한지 눌러서 확인한다. 값을 보고 넘겨짚지 않는다.
+
+```
+node test/supabase-check.js https://<ref>.supabase.co <anon key>
+```
+
+버킷 존재 · 가입 차단 · 익명 읽기/쓰기 차단 · 공개 경로 차단을 실제 요청으로 검사한다.
 
 ### 연결
 
