@@ -209,9 +209,19 @@
 
   /* ---------- 연결 ---------- */
 
-  /** 이미 한 번이라도 저장된 적이 있는가. 첫 실행이면 4개 파일이 아직 없다. */
+  /** 이미 한 번이라도 저장된 적이 있는가. 첫 실행이면 4개 파일이 아직 없다.
+   *
+   *  **빈 객체 {} 는 참이다.** 파일이 있는데 내용이 비어 있으면 예전 판정은
+   *  "데이터 있음" 이었다. 폴더 저장에서는 파일이 없으면 null 이라 이게 드러나지
+   *  않았지만, 원격은 한 번 빈 상태로 저장되면 {} 인 파일이 남는다. 그러면 앱이
+   *  빈 저장소를 채택하고 화면이 비어 버린다. 실제로 그렇게 됐다.
+   *  존재가 아니라 내용을 센다. */
   function hasSavedData(data) {
-    return !!(data && (data.nodes || data.edges || data.canvases));
+    if (!data) return false;
+    return ['nodes', 'edges', 'canvases'].some(function (k) {
+      var o = data[k];
+      return !!o && typeof o === 'object' && Object.keys(o).length > 0;
+    });
   }
 
   /** data 를 넘기면 그걸 쓰고, 없으면 직접 읽는다. 부팅 때 readAll 을 두 번 부르지 않으려고. */
