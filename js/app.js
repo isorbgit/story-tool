@@ -247,6 +247,50 @@
     return bootData().then(startApp);
   }
 
+  /* ---------- 원격 저장소 ----------
+     FSA/OPFS 와 달리 기기를 가리지 않는 유일한 저장소다. 설정돼 있으면 이게 우선이고,
+     연결에 실패하면 조용히 로컬로 내려간다 — 비행기 안에서 앱이 안 열리면 안 된다. */
+
+  var remoteError = null;
+
+  function connectRemote() {
+    return WM.storage.SupabaseAdapter.setup().then(function (a) {
+      if (!a) return;
+      return store.flush().then(function () { return a.readAll(); }).then(function (remote) {
+        var localCount = Object.keys(store.state.nodes || {}).length;
+
+        /* 빈 원격에 그냥 붙으면 화면이 비고, 곧이어 그 빈 상태가 원격에 저장된다.
+           로컬 데이터가 있는데 원격이 비었으면 반드시 물어본다. */
+        if (localCount && !hasSavedData(remote)) {
+          return U.confirmModal('원격 저장소가 비어 있습니다', [
+            el('p', {}, ['지금 열려 있는 ', el('b', { text: localCount + '개' }), ' 노드를 원격으로 올릴까요?']),
+            el('p.dim', { text: '올리지 않으면 빈 상태로 시작합니다. 지금 데이터는 로컬에 그대로 남습니다.' })
+          ], '올리고 연결', 'primary').then(function (up) {
+            if (!up) return;
+            adapter = a;
+            store.state.adapter = a;
+            return store.save(true).then(startApp);        // force — 4개 파일 전부
+          });
+        }
+
+        adapter = a;
+        return bootData(remote).then(startApp);
+      });
+    }).catch(function (e) {
+      console.error(e);
+      U.toast('원격 저장소 연결 실패: ' + (e.message || e), 'bad', 6000);
+    });
+  }
+
+  function remoteButton() {
+    return el('div.welcome__hint', {}, [
+      el('h3', { text: '여러 기기에서 쓰려면' }),
+      el('p', { text: '원격 저장소에 연결하면 PC 와 아이패드가 같은 데이터를 봅니다. 번들을 주고받을 필요가 없어집니다.' }),
+      remoteError ? el('p.warn', { text: '지난번 연결이 실패했습니다: ' + remoteError }) : null,
+      el('button.btn', { type: 'button', text: '원격 저장소 연결', onclick: connectRemote })
+    ]);
+  }
+
   /* ---------- 시작 화면 ---------- */
 
   /** 무엇이 되고 무엇이 안 되는지 화면에 그대로 보여준다. 저장이 안 되는 이유를 추측하게 두지 않는다. */
@@ -327,6 +371,7 @@
       kids.push(el('p.dim', { text: '둘러보기 모드에서도 [가져오기]로 번들을 열고 [내보내기]로 파일을 받을 수는 있습니다. 새로고침하면 사라집니다.' }));
     }
 
+    kids.push(remoteButton());
     kids.push(el('div.welcome__import', {}, [diagnostics()]));
 
     pane.appendChild(el('div.welcome', {}, kids));
@@ -403,8 +448,28 @@
 
   function boot() {
     wire();
+    /* 원격 저장소가 설정돼 있으면 먼저 시도한다. 기기 간 공통 저장소는 이것뿐이라
+       로컬보다 우선이다. 실패하면 이유만 들고 로컬 경로로 내려간다. */
+    WM.storage.SupabaseAdapter.loadConfig().then(function (cfg) {
+      if (!cfg) return null;
+      var a = new WM.storage.SupabaseAdapter();
+      return a.connect().then(function () { return a; }).catch(function (e) {
+        remoteError = e.message || String(e);
+        console.warn('[wm] 원격 저장소를 쓸 수 없어 로컬로 내려갑니다 —', remoteError);
+        return null;
+      });
+    }).then(function (remote) {
+      if (remote) {
+        adapter = remote;
+        return bootData().then(startApp).catch(readFailed);
+      }
+      return localBoot();
+    });
+  }
+
+  function localBoot() {
     // 어댑터 선택은 OPFS 실사용 확인을 포함하므로 비동기다.
-    WM.storage.pickAdapter().then(function (a) {
+    return WM.storage.pickAdapter().then(function (a) {
       adapter = a;
 
       if (adapter.id === 'fsa') {

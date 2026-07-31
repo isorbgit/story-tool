@@ -20,6 +20,51 @@
 > **주소가 곧 저장소 신원이다.** `file://` 로 연 것과 `http://localhost` 로 연 것은
 > 서로 다른 저장소를 쓴다. 하나를 정해서 계속 쓰고, 옮길 때는 내보내기/가져오기를 쓴다.
 
+## 원격 저장소 (선택)
+
+위 저장 방식들은 전부 **그 기기 안**에만 남는다. PC 와 아이패드가 같은 데이터를 보게
+하려면 Supabase Storage 에 연결한다. 연결하면 번들을 주고받을 필요가 없어진다.
+
+### 준비 (한 번만, 웹 콘솔에서)
+
+1. [supabase.com](https://supabase.com) 에서 프로젝트를 만든다
+2. **Storage → New bucket** — 이름 `worldmap`, **Public 체크 해제**
+3. **Authentication → Users → Add user** — 쓸 이메일·비밀번호로 하나 만든다
+   (Auto Confirm User 를 켜야 메일 확인 없이 바로 쓴다)
+4. **Storage → Policies** — `worldmap` 버킷에 정책을 건다.
+   SQL Editor 에서 아래를 그대로 실행해도 된다:
+
+```sql
+create policy "worldmap read"  on storage.objects for select
+  using (bucket_id = 'worldmap' and auth.role() = 'authenticated');
+create policy "worldmap write" on storage.objects for insert
+  with check (bucket_id = 'worldmap' and auth.role() = 'authenticated');
+create policy "worldmap update" on storage.objects for update
+  using (bucket_id = 'worldmap' and auth.role() = 'authenticated');
+create policy "worldmap delete" on storage.objects for delete
+  using (bucket_id = 'worldmap' and auth.role() = 'authenticated');
+```
+
+> **정책을 걸지 않으면 아무도 못 읽고, 버킷을 Public 으로 만들면 누구나 읽는다.**
+> 설정에 비밀·반전이 들어 있다면 반드시 private + 위 정책이다.
+
+5. **Project Settings → API** 에서 `URL` 과 `anon public` 키를 복사한다
+
+### 연결
+
+시작 화면의 **[원격 저장소 연결]** 에 URL·anon key·버킷·이메일·비밀번호를 넣는다.
+한 번 넣으면 다음부터 자동으로 연결되고, 아이패드에서도 같은 값을 넣으면 같은 데이터를 본다.
+
+- `anon key` 는 클라이언트에 노출을 전제로 만든 키다. GitHub 토큰과 달리 여기 넣어도 된다 —
+  실제 방어는 위 정책과 로그인이 한다
+- 연결에 실패하면 **조용히 로컬 저장으로 내려간다.** 비행기 안에서 앱이 안 열리면 안 된다
+- 원격이 비어 있는데 로컬에 데이터가 있으면, 올릴지 먼저 묻는다
+- 버킷 안의 트리는 폴더 저장과 같은 모양(`data/`, `backup/`)이라 서로 옮겨 쓸 수 있다
+
+```
+node test/supabase.test.js     프로젝트 없이 도는 스모크 테스트
+```
+
 ## 데이터
 
 노드(존재) · 엣지(사실) · 배치(표현) 를 나눠 4개 JSON 으로 저장한다.
