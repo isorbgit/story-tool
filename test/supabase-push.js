@@ -31,48 +31,7 @@ let API = URL_ARG.replace(/\/+$/, '');
 const dash = API.match(/supabase\.com\/dashboard\/project\/([a-z0-9]+)/i);
 if (dash) API = 'https://' + dash[1] + '.supabase.co';
 
-const LF = String.fromCharCode(10);
-const CR = String.fromCharCode(13);
-const EOT = String.fromCharCode(4);
-const ETX = String.fromCharCode(3);
-const DEL = String.fromCharCode(127);
-const BS = String.fromCharCode(8);
-
-function ask(prompt, hidden) {
-  return new Promise(function (resolve) {
-    const stdin = process.stdin;
-    stdin.setEncoding('utf8');
-    if (!stdin.isTTY) {
-      let piped = '';
-      stdin.on('data', function (d) { piped += d; });
-      stdin.on('end', function () { stdin.pause(); resolve(piped.split(LF)[0].replace(CR, '')); });
-      return;
-    }
-    process.stdout.write(prompt);
-    if (hidden) stdin.setRawMode(true);
-    stdin.resume();
-    let buf = '';
-    stdin.on('data', function onData(ch) {
-      if (ch === LF || ch === CR || ch === EOT) {
-        if (hidden) stdin.setRawMode(false);
-        stdin.pause();
-        stdin.removeListener('data', onData);
-        process.stdout.write(LF);
-        resolve(buf);
-      } else if (ch === ETX) {
-        if (hidden) stdin.setRawMode(false);
-        process.stdout.write(LF);
-        process.exit(130);
-      } else if (ch === DEL || ch === BS) {
-        buf = buf.slice(0, -1);
-        if (!hidden) process.stdout.write('\b \b');
-      } else {
-        buf += ch;
-        if (!hidden) process.stdout.write(ch);
-      }
-    });
-  });
-}
+const { ask, LF } = require('./_prompt.js');
 
 async function main() {
   // 올릴 것이 실제로 있는지 먼저 본다. 빈 것을 올려 원격을 덮으면 안 된다.

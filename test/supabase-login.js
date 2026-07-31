@@ -31,50 +31,7 @@ if (dash) {
 }
 const BUCKET = process.env.WM_BUCKET || 'worldmap';
 
-/* 제어문자는 코드로 쓴다. 소스에 그대로 박으면 편집 도구를 거치며 깨진다. */
-const LF = String.fromCharCode(10);
-const CR = String.fromCharCode(13);
-const EOT = String.fromCharCode(4);
-const ETX = String.fromCharCode(3);          // Ctrl+C
-const DEL = String.fromCharCode(127);
-const BS = String.fromCharCode(8);
-
-/** 비밀번호를 화면에 남기지 않고 받는다. 파이프로 넣어도 된다. */
-function askPassword() {
-  return new Promise(function (resolve) {
-    const stdin = process.stdin;
-    stdin.setEncoding('utf8');
-
-    if (!stdin.isTTY) {                       // echo pw | node ... 로 넣는 경우
-      let piped = '';
-      stdin.on('data', function (d) { piped += d; });
-      stdin.on('end', function () { stdin.pause(); resolve(piped.split(LF)[0].replace(CR, '')); });
-      return;
-    }
-
-    process.stdout.write(EMAIL + ' 의 비밀번호: ');
-    stdin.setRawMode(true);
-    stdin.resume();
-    let buf = '';
-    stdin.on('data', function onData(ch) {
-      if (ch === LF || ch === CR || ch === EOT) {
-        stdin.setRawMode(false);
-        stdin.pause();
-        stdin.removeListener('data', onData);
-        process.stdout.write(LF);
-        resolve(buf);
-      } else if (ch === ETX) {
-        stdin.setRawMode(false);
-        process.stdout.write(LF);
-        process.exit(130);
-      } else if (ch === DEL || ch === BS) {
-        buf = buf.slice(0, -1);
-      } else {
-        buf += ch;
-      }
-    });
-  });
-}
+const { ask, LF } = require('./_prompt.js');
 
 function step(ok, label, detail) {
   console.log('  ' + (ok ? 'ok ' : 'X  ') + label + (detail ? LF + '        ' + detail : ''));
@@ -82,7 +39,7 @@ function step(ok, label, detail) {
 }
 
 async function main() {
-  const password = (process.env.WM_PASSWORD || (await askPassword())).trim();
+  const password = (process.env.WM_PASSWORD || (await ask(EMAIL + ' 의 비밀번호: ', true))).trim();
   if (!password) {
     if (!process.stdin.isTTY) {
       console.error('비밀번호를 받지 못했습니다 — 입력이 터미널에 연결돼 있지 않습니다.');
